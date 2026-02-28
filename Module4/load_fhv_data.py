@@ -1,18 +1,20 @@
 import os
 import sys
+import pandas as pd
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from google.cloud import storage
 from google.api_core.exceptions import NotFound, Forbidden
 import time
 
+
 # --- Configuration ---
 BUCKET_NAME = "de-zoomcamp--2026" 
-CREDENTIALS_FILE = "de-zoomcamp-487123-d8b7091f92c8.json"
+CREDENTIALS_FILE = "de-zoomcamp-487123-1fd52da55e16.json"
 
 # Tasks to complete: 2019-2020 for both Yellow and Green taxis
-YEARS = ["2019", "2020"]
-COLORS = ["yellow", "green"]
+YEARS = ["2019"]
+COLORS = ["fhv"]
 MONTHS = [f"{i:02d}" for i in range(1, 13)]
 DOWNLOAD_DIR = "."
 
@@ -20,17 +22,38 @@ client = storage.Client.from_service_account_json(CREDENTIALS_FILE)
 bucket = client.bucket(BUCKET_NAME)
 
 def download_file(color, year, month):
-    file_name = f"{color}_tripdata_{year}-{month}.parquet"
-    url = f"https://d37ci6vzurychx.cloudfront.net/trip-data/{file_name}"
+    file_name = f"{color}_tripdata_{year}-{month}.csv.gz"
+    url = f"https://github.com/DataTalksClub/nyc-tlc-data/releases/download/fhv/{file_name}"
+    
+    parquet_file = file_name.replace(".csv.gz", ".parquet")
     file_path = os.path.join(DOWNLOAD_DIR, file_name)
+    parquet_path = os.path.join(DOWNLOAD_DIR, parquet_file)
 
     try:
         print(f"Downloading {url}...")
         urllib.request.urlretrieve(url, file_path)
-        print(f"Downloaded: {file_path}")
-        return file_path
+        
+        # --- Data Cleaning with Pandas ---
+        # Load the raw CSV file into a DataFrame
+        df = pd.read_csv(file_path)
+        
+        # # Standardize data types:
+        # Convert base number to string and location IDs to nullable integers (Int64)
+        # This prevents schema issues in BigQuery caused by mixed types or NaN values
+        if 'PUlocationID' in df.columns:
+            df['PUlocationID'] = df['PUlocationID'].astype('Int64')
+        if 'DOlocationID' in df.columns:
+            df['DOlocationID'] = df['DOlocationID'].astype('Int64')
+        
+        # Export the cleaned data to Parquet format for better performance and smaller storage size
+        df.to_parquet(parquet_path, engine='pyarrow')
+        print(f"Cleaned and converted to: {parquet_path}")
+        
+       # Cleanup: Remove the raw CSV to save local disk space
+        os.remove(file_path)
+        return parquet_path
     except Exception as e:
-        print(f"Failed to download {url}: {e}")
+        print(f"Failed to process {url}: {e}")
         return None
 
 def verify_gcs_upload(blob_name):
