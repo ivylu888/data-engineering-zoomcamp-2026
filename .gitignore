@@ -60,7 +60,6 @@ venv.bak/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*.ipynb
 
 # pyenv
 .python-version
@@ -93,3 +92,19 @@ google-*.json
 .env.*.local
 *.env
 dbt_internal_packages/
+
+# Archives
+*.zip
+
+# Python compiled files
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+.vscode/
+
+# Spark/Hadoop output patterns
+*.crc
+_SUCCESS
+._SUCCESS*
